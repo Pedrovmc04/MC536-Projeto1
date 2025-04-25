@@ -81,7 +81,7 @@ def load_country_data(file_name, value_column_name):
         return None
 
 # Function to insert data into Estado table (previously named Regiao in the code)
-def insert_regioes(conn, df):
+def insert_estado(conn, df):
     try:
         cursor = conn.cursor()
         
@@ -361,7 +361,7 @@ def main():
         print("\nProcessing CAPACIDADE_GERACAO.csv...")
         cap_data = load_capacidade_geracao()
         if cap_data is not None:
-            insert_regioes(conn, cap_data)
+            insert_estado(conn, cap_data)
             insert_agentes(conn, cap_data)
             insert_usinas(conn, cap_data)
             insert_unidades_geradoras(conn, cap_data)
