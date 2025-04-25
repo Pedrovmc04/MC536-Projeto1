@@ -80,26 +80,118 @@ def load_country_data(file_name, value_column_name):
         print(f"Error loading {file_name}: {e}")
         return None
 
-# Function to insert data into Estado table (previously named Regiao in the code)
+# Function to insert regiao data - update to use id_pais instead of code
+def insert_regiao(conn, df):
+    try:
+        cursor = conn.cursor()
+        
+        # Get the country id for Brazil
+        cursor.execute("SELECT id_pais FROM Pais WHERE nome LIKE '%Brazil%' OR nome LIKE '%Brasil%' LIMIT 1")
+        brasil_id = cursor.fetchone()
+        
+        if not brasil_id:
+            # If Brazil doesn't exist, insert it
+            cursor.execute(
+                """
+                INSERT INTO Pais (code, nome)
+                VALUES (%s, %s)
+                RETURNING id_pais
+                """,
+                ('BRA', 'Brazil')
+            )
+            brasil_id = cursor.fetchone()
+        
+        # Extract unique regions from the dataset using id_subsistema and nom_subsistema
+        regioes_df = df[['id_subsistema', 'nom_subsistema']].drop_duplicates()
+        regiao_ids = {}
+        
+        # Insert each unique region
+        for _, row in regioes_df.iterrows():
+            cod_regiao = row['id_subsistema']
+            nome = row['nom_subsistema']
+            
+            # First check if region already exists
+            cursor.execute(
+                """
+                SELECT id_subsistema FROM Subsistema WHERE cod_regiao = %s
+                """,
+                (cod_regiao,)
+            )
+            existing = cursor.fetchone()
+            
+            if existing:
+                # Region exists, update if needed
+                cursor.execute(
+                    """
+                    UPDATE Subsistema SET nome = %s WHERE cod_regiao = %s
+                    RETURNING id_subsistema
+                    """,
+                    (nome, cod_regiao)
+                )
+                regiao_id = cursor.fetchone()[0]
+                regiao_ids[nome] = regiao_id
+            else:
+                # Insert new region
+                cursor.execute(
+                    """
+                    INSERT INTO Subsistema (cod_regiao, nome, id_pais)
+                    VALUES (%s, %s, %s)
+                    RETURNING id_subsistema
+                    """,
+                    (cod_regiao, nome, brasil_id[0])
+                )
+                regiao_id = cursor.fetchone()[0]
+                regiao_ids[nome] = regiao_id
+        
+        conn.commit()
+        print(f"Inserted/updated {len(regiao_ids)} subsistemas")
+        
+        return regiao_ids
+    except Exception as e:
+        print(f"Error inserting into Subsistema: {e}")
+        conn.rollback()
+        return {}
+
+# Function to insert data into Estado table
 def insert_estado(conn, df):
     try:
         cursor = conn.cursor()
         
-        # Extract unique regions from the dataframe
-        regioes = df[['id_estado', 'nom_estado']].drop_duplicates()
+        # Extract unique states from the dataframe
+        estados = df[['id_estado', 'nom_estado', 'id_subsistema']].drop_duplicates()
         
-        for _, row in regioes.iterrows():
+        # First insert regions and get region IDs
+        regiao_ids = insert_regiao(conn, df)
+        
+        inserted = 0
+        for _, row in estados.iterrows():
+            estado_cod = row['id_estado']
+            
+            # Get the subsistema (region) for this state directly from the data
+            id_subsistema = row['id_subsistema']
+            
+            # Find the region id for this subsistema - now using id_subsistema
             cursor.execute(
                 """
-                INSERT INTO Estado (nome, cod_estado, administracao)
+                SELECT id_subsistema FROM Subsistema WHERE cod_regiao = %s
+                """,
+                (id_subsistema,)
+            )
+            result = cursor.fetchone()
+            regiao_id = result[0] if result else None
+            
+            cursor.execute(
+                """
+                INSERT INTO Estado (nome, cod_estado, id_subsistema)
                 VALUES (%s, %s, %s)
                 ON CONFLICT DO NOTHING
                 """,
-                (row['nom_estado'], row['id_estado'], None)
+                (row['nom_estado'], estado_cod, regiao_id)
             )
+            inserted += 1
             
         conn.commit()
-        print(f"Inserted {len(regioes)} states")
+        print(f"Inserted {inserted} states")
     except Exception as e:
         print(f"Error inserting into Estado: {e}")
         conn.rollback()
@@ -141,31 +233,23 @@ def insert_usinas(conn, df):
         cursor.execute("SELECT id_agente, nome FROM Agente_Proprietario")
         agente_map = {nome: id for id, nome in cursor.fetchall()}
         
-        # Group by unique usina
-        usinas = df[['nom_usina', 'nom_agenteproprietario', 'dat_entradateste',
-                     'dat_entradaoperacao', 'dat_desativacao', 'nom_tipousina',
+        # Group by unique usina - removed date fields as they were moved to Unidade_Geradora
+        usinas = df[['nom_usina', 'nom_agenteproprietario', 'nom_tipousina',
                      'nom_modalidadeoperacao', 'id_estado']].drop_duplicates()
         
         for _, row in usinas.iterrows():
             id_agente = agente_map.get(row['nom_agenteproprietario'])
             id_estado = estado_map.get(row['id_estado'])
             
-            # Handle NaT/None values for date columns
-            data_teste = None if pd.isna(row['dat_entradateste']) else row['dat_entradateste']
-            data_operacao = None if pd.isna(row['dat_entradaoperacao']) else row['dat_entradaoperacao']
-            data_desativacao = None if pd.isna(row['dat_desativacao']) else row['dat_desativacao']
-            
             cursor.execute(
                 """
-                INSERT INTO Usina (nome, id_agente_proprietario, data_entrada_teste,
-                                  data_entrada_operacao, data_desativacao, tipo,
+                INSERT INTO Usina (nome, id_agente_proprietario, tipo,
                                   modalidade_operacao, id_estado)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT DO NOTHING
                 RETURNING id_usina
                 """,
-                (row['nom_usina'], id_agente, data_teste, 
-                 data_operacao, data_desativacao,
+                (row['nom_usina'], id_agente,
                  row['nom_tipousina'], row['nom_modalidadeoperacao'], id_estado)
             )
             
@@ -189,10 +273,11 @@ def insert_unidades_geradoras(conn, df):
         cursor.execute("SELECT id_usina, nome FROM Usina")
         usina_map = {nome: id for id, nome in cursor.fetchall()}
         
-        # Extract units
+        # Extract units - now including date fields that were moved from Usina
         unidades = df[['nom_usina', 'cod_equipamento', 'nom_unidadegeradora',
-                        'num_unidadegeradora', 'val_potenciaefetiva', 
-                        'nom_combustivel']].drop_duplicates()
+                      'num_unidadegeradora', 'dat_entradateste', 'dat_entradaoperacao',
+                      'dat_desativacao', 'val_potenciaefetiva', 
+                      'nom_combustivel']].drop_duplicates()
         
         for _, row in unidades.iterrows():
             id_usina = usina_map.get(row['nom_usina'])
@@ -204,18 +289,25 @@ def insert_unidades_geradoras(conn, df):
                 # If conversion fails, set to None
                 num_unidade = None
             
+            # Handle NaT/None values for date columns
+            data_teste = None if pd.isna(row['dat_entradateste']) else row['dat_entradateste']
+            data_operacao = None if pd.isna(row['dat_entradaoperacao']) else row['dat_entradaoperacao']
+            data_desativacao = None if pd.isna(row['dat_desativacao']) else row['dat_desativacao']
+            
             if id_usina:
                 cursor.execute(
                     """
                     INSERT INTO Unidade_Geradora (cod_equipamento, nome_unidade,
-                                               num_unidade, potencia_efetiva,
-                                               combustivel, id_usina)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                                               num_unidade, data_entrada_teste,
+                                               data_entrada_operacao, data_desativacao,
+                                               potencia_efetiva, combustivel, id_usina)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT DO NOTHING
                     RETURNING id_unidade
                     """,
                     (row['cod_equipamento'], row['nom_unidadegeradora'],
-                     num_unidade, row['val_potenciaefetiva'],
+                     num_unidade, data_teste, data_operacao,
+                     data_desativacao, row['val_potenciaefetiva'],
                      row['nom_combustivel'], id_usina)
                 )
                 
@@ -229,7 +321,7 @@ def insert_unidades_geradoras(conn, df):
         print(f"Error inserting into Unidade_Geradora: {e}")
         conn.rollback()
 
-# Function to insert countries
+# Update insert_paises function to return id_pais for each country code
 def insert_paises(conn, df):
     try:
         cursor = conn.cursor()
@@ -238,28 +330,44 @@ def insert_paises(conn, df):
         paises = df[['nome_pais', 'code']].dropna(subset=['code']).drop_duplicates()
         
         inserted = 0
+        country_ids = {}  # Dictionary to store code -> id_pais mapping
+        
         for _, row in paises.iterrows():
+            # First check if country exists
             cursor.execute(
                 """
-                INSERT INTO Pais (code, nome)
-                VALUES (%s, %s)
-                ON CONFLICT DO NOTHING
-                RETURNING code
+                SELECT id_pais FROM Pais WHERE code = %s
                 """,
-                (row['code'], row['nome_pais'])
+                (row['code'],)
             )
+            existing = cursor.fetchone()
             
-            result = cursor.fetchone()
-            if result:
-                inserted += 1
+            if existing:
+                country_ids[row['code']] = existing[0]
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO Pais (code, nome)
+                    VALUES (%s, %s)
+                    RETURNING id_pais
+                    """,
+                    (row['code'], row['nome_pais'])
+                )
+                
+                result = cursor.fetchone()
+                if result:
+                    inserted += 1
+                    country_ids[row['code']] = result[0]
                 
         conn.commit()
         print(f"Inserted {inserted} countries")
+        return country_ids
     except Exception as e:
         print(f"Error inserting into Pais: {e}")
         conn.rollback()
+        return {}
 
-# Function to insert data into specified table
+# Update insert_country_data function to use id_pais instead of code_pais
 def insert_country_data(conn, df, table_name):
     try:
         cursor = conn.cursor()
@@ -268,20 +376,32 @@ def insert_country_data(conn, df, table_name):
         # Filter out rows with NaN codes
         df_clean = df.dropna(subset=['code'])
         
+        # Get country_id mapping
+        country_ids = {}
+        cursor.execute("SELECT id_pais, code FROM Pais")
+        for id_pais, code in cursor.fetchall():
+            country_ids[code] = id_pais
+        
         for _, row in df_clean.iterrows():
-            cursor.execute(
-                f"""
-                INSERT INTO {table_name} (code_pais, ano, porcentagem)
-                VALUES (%s, %s, %s)
-                ON CONFLICT DO NOTHING
-                RETURNING id
-                """,
-                (row['code'], row['ano'], row['valor'])
-            )
+            code = row['code']
+            id_pais = country_ids.get(code)
             
-            result = cursor.fetchone()
-            if result:
-                inserted += 1
+            if id_pais:
+                cursor.execute(
+                    f"""
+                    INSERT INTO {table_name} (id_pais, ano, porcentagem)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                    RETURNING id
+                    """,
+                    (id_pais, row['ano'], row['valor'])
+                )
+                
+                result = cursor.fetchone()
+                if result:
+                    inserted += 1
+            else:
+                print(f"Warning: No country ID found for code {code}")
                 
         conn.commit()
         print(f"Inserted {inserted} records into {table_name}")
@@ -289,7 +409,7 @@ def insert_country_data(conn, df, table_name):
         print(f"Error inserting into {table_name}: {e}")
         conn.rollback()
 
-# Function to insert investment data
+# Update insert_investment_data function
 def insert_investment_data(conn, df):
     try:
         cursor = conn.cursor()
@@ -298,20 +418,32 @@ def insert_investment_data(conn, df):
         # Filter out rows with NaN codes
         df_clean = df.dropna(subset=['code'])
         
-        for _, row in df_clean.iterrows():
-            cursor.execute(
-                """
-                INSERT INTO Investimento_Energia_Limpa (code_pais, ano, valor_dolar)
-                VALUES (%s, %s, %s)
-                ON CONFLICT DO NOTHING
-                RETURNING id
-                """,
-                (row['code'], row['ano'], row['valor'])
-            )
+        # Get country_id mapping
+        country_ids = {}
+        cursor.execute("SELECT id_pais, code FROM Pais")
+        for id_pais, code in cursor.fetchall():
+            country_ids[code] = id_pais
             
-            result = cursor.fetchone()
-            if result:
-                inserted += 1
+        for _, row in df_clean.iterrows():
+            code = row['code']
+            id_pais = country_ids.get(code)
+            
+            if id_pais:
+                cursor.execute(
+                    """
+                    INSERT INTO Investimento_Energia_Limpa (id_pais, ano, valor_dolar)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                    RETURNING id
+                    """,
+                    (id_pais, row['ano'], row['valor'])
+                )
+                
+                result = cursor.fetchone()
+                if result:
+                    inserted += 1
+            else:
+                print(f"Warning: No country ID found for code {code}")
                 
         conn.commit()
         print(f"Inserted {inserted} investment records")
@@ -319,7 +451,7 @@ def insert_investment_data(conn, df):
         print(f"Error inserting into Investimento_Energia_Limpa: {e}")
         conn.rollback()
 
-# Function to insert renewable energy per capita data
+# Update insert_renewable_per_capita function
 def insert_renewable_per_capita(conn, df):
     try:
         cursor = conn.cursor()
@@ -328,20 +460,32 @@ def insert_renewable_per_capita(conn, df):
         # Filter out rows with NaN codes
         df_clean = df.dropna(subset=['code'])
         
+        # Get country_id mapping
+        country_ids = {}
+        cursor.execute("SELECT id_pais, code FROM Pais")
+        for id_pais, code in cursor.fetchall():
+            country_ids[code] = id_pais
+        
         for _, row in df_clean.iterrows():
-            cursor.execute(
-                """
-                INSERT INTO Energia_Renovavel_Per_Capita (code_pais, ano, geracao_watts)
-                VALUES (%s, %s, %s)
-                ON CONFLICT DO NOTHING
-                RETURNING id
-                """,
-                (row['code'], row['ano'], row['valor'])
-            )
+            code = row['code']
+            id_pais = country_ids.get(code)
             
-            result = cursor.fetchone()
-            if result:
-                inserted += 1
+            if id_pais:
+                cursor.execute(
+                    """
+                    INSERT INTO Energia_Renovavel_Per_Capita (id_pais, ano, geracao_watts)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                    RETURNING id
+                    """,
+                    (id_pais, row['ano'], row['valor'])
+                )
+                
+                result = cursor.fetchone()
+                if result:
+                    inserted += 1
+            else:
+                print(f"Warning: No country ID found for code {code}")
                 
         conn.commit()
         print(f"Inserted {inserted} renewable per capita records")
@@ -361,11 +505,21 @@ def main():
         print("\nProcessing CAPACIDADE_GERACAO.csv...")
         cap_data = load_capacidade_geracao()
         if cap_data is not None:
+            # Insert countries first if needed for regions
+            print("\nProcessing countries for regions...")
+            electricity = load_country_data(
+                'share-of-the-population-with-access-to-electricity.csv',
+                'Access to electricity (% of population)'
+            )
+            if electricity is not None:
+                insert_paises(conn, electricity)
+            
+            # Now insert regions and states
             insert_estado(conn, cap_data)
             insert_agentes(conn, cap_data)
             insert_usinas(conn, cap_data)
             insert_unidades_geradoras(conn, cap_data)
-        
+
         # Load and process country data files
         print("\nProcessing clean fuels data...")
         clean_fuels = load_country_data(
