@@ -5,18 +5,11 @@ import os
 from datetime import datetime
 import numpy as np
 import unicodedata
+from config import DB_CONFIG, DATA_DIR
 
-# PostgreSQL connection parameters
-DB_PARAMS = {
-    'dbname': 'my_database',  # Replace with your database name
-    'user': 'postgres',         # Replace with your username
-    'password': 'mypassword',     # Replace with your password
-    'host': '127.0.0.1',
-    'port': '5432'
-}
-
-# Path to CSV files
-BASE_DIR = '/home/pedrovmc/Downloads/Banco de dados/data'
+# Use imported configuration parameters
+DB_PARAMS = DB_CONFIG
+BASE_DIR = DATA_DIR
 
 # Function to connect to PostgreSQL - updated to set encoding
 def connect_to_db():
