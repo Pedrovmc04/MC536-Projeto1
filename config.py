@@ -8,4 +8,4 @@ DB_CONFIG = {
 }
 
 # Path configuration
-DATA_DIR = '/home/pedrovmc/Downloads/Banco de dados/data'
+DATA_DIR = './data'
