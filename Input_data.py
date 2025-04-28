@@ -251,9 +251,9 @@ def insert_usinas(conn, df):
         cursor.execute("SELECT id_agente, nome FROM Agente_Proprietario")
         agente_map = {nome: id for id, nome in cursor.fetchall()}
         
-        # Group by unique usina - removed date fields as they were moved to Unidade_Geradora
+        # Group by unique usina - now including the ceg field
         usinas = df[['nom_usina', 'nom_agenteproprietario', 'nom_tipousina',
-                     'nom_modalidadeoperacao', 'id_estado']].drop_duplicates()
+                     'nom_modalidadeoperacao', 'id_estado', 'ceg']].drop_duplicates()
         
         for _, row in usinas.iterrows():
             id_agente = agente_map.get(row['nom_agenteproprietario'])
@@ -263,16 +263,17 @@ def insert_usinas(conn, df):
             tipo_usina = row['nom_tipousina'].strip() if isinstance(row['nom_tipousina'], str) else row['nom_tipousina']
             modalidade = row['nom_modalidadeoperacao'].strip() if isinstance(row['nom_modalidadeoperacao'], str) else row['nom_modalidadeoperacao']
             nome_usina = row['nom_usina'].strip() if isinstance(row['nom_usina'], str) else row['nom_usina']
+            ceg = row['ceg'].strip() if isinstance(row['ceg'], str) else row['ceg']
             
             cursor.execute(
                 """
                 INSERT INTO Usina (nome, id_agente_proprietario, tipo,
-                                  modalidade_operacao, id_estado)
-                VALUES (%s, %s, %s, %s, %s)
+                                  modalidade_operacao, id_estado, ceg)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT DO NOTHING
                 RETURNING id_usina
                 """,
-                (nome_usina, id_agente, tipo_usina, modalidade, id_estado)
+                (nome_usina, id_agente, tipo_usina, modalidade, id_estado, ceg)
             )
             
             result = cursor.fetchone()

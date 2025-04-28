@@ -39,7 +39,8 @@ CREATE TABLE Usina (
     id_agente_proprietario INTEGER REFERENCES Agente_Proprietario(id_agente),
     tipo VARCHAR(50),
     modalidade_operacao VARCHAR(50),
-    id_estado INTEGER REFERENCES Estado(id_estado)
+    id_estado INTEGER REFERENCES Estado(id_estado),
+    ceg VARCHAR(50) UNIQUE
 );
 
 -- 5. Tabela Unidade_Geradora
