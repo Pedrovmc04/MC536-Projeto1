@@ -1,11 +1,11 @@
--- 6. Tabela Pais (moved up to be created before Regiao)
+-- 6. Tabela Pais
 CREATE TABLE Pais (
     id_pais SERIAL PRIMARY KEY,
     code VARCHAR(10) UNIQUE NOT NULL,
     nome VARCHAR(100) NOT NULL
 );
 
--- 2 Tabela Subsistema (Renamed from Regiao, using serial PK and cod_regiao as unique)
+-- 2 Tabela Subsistema
 CREATE TABLE Subsistema (
     id_subsistema SERIAL PRIMARY KEY,
     cod_regiao VARCHAR(3) UNIQUE NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE Subsistema (
     id_pais INTEGER REFERENCES Pais(id_pais)
 );
 
--- 1. Tabela Estado (mudar pk para code_estado)
+-- 1. Tabela Estado
 CREATE TABLE Estado (
     id_estado SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE Agente_Proprietario (
     nome VARCHAR(100) NOT NULL
 );
 
--- 4. Tabela Usina (datas de entrada e desativação para unidade geradora)
+-- 4. Tabela Usina
 CREATE TABLE Usina (
     id_usina SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE Usina (
     id_estado INTEGER REFERENCES Estado(id_estado)
 );
 
--- 5. Tabela Unidade_Geradora (MUDAR)
+-- 5. Tabela Unidade_Geradora
 CREATE TABLE Unidade_Geradora (
     id_unidade SERIAL PRIMARY KEY,
     cod_equipamento VARCHAR(50) NOT NULL,
@@ -75,7 +75,7 @@ CREATE TABLE Acesso_Combustivel_Limpo (
     porcentagem FLOAT NOT NULL
 );
 
--- 10. Tabela Investimento_Energia_Limpa
+-- 10. Tabela Investimento_Energia_Limpa    
 CREATE TABLE Investimento_Energia_Limpa (
     id SERIAL PRIMARY KEY,
     id_pais INTEGER REFERENCES Pais(id_pais),

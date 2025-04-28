@@ -4,6 +4,7 @@ from psycopg2 import sql
 import os
 from datetime import datetime
 import numpy as np
+import unicodedata
 
 # PostgreSQL connection parameters
 DB_PARAMS = {
@@ -17,36 +18,60 @@ DB_PARAMS = {
 # Path to CSV files
 BASE_DIR = '/home/pedrovmc/Downloads/Banco de dados/data'
 
-# Function to connect to PostgreSQL
+# Function to connect to PostgreSQL - updated to set encoding
 def connect_to_db():
     try:
         conn = psycopg2.connect(**DB_PARAMS)
+        conn.set_client_encoding('UTF8')  # Set connection encoding to UTF-8
         print("Connected to PostgreSQL database successfully")
         return conn
     except (Exception, psycopg2.Error) as error:
         print(f"Error while connecting to PostgreSQL: {error}")
         return None
 
-# Function to load CAPACIDADE_GERACAO.csv
+# Function to normalize accented text
+def normalize_text(text):
+    if not isinstance(text, str):
+        return text
+    # Normalize accented characters properly
+    return text.strip()
+
+# Function to load CAPACIDADE_GERACAO.csv - updated for encoding
 def load_capacidade_geracao():
     file_path = os.path.join(BASE_DIR, 'CAPACIDADE_GERACAO.csv')
     try:
-        # Read CSV with semicolon delimiter and skip header rows if needed
-        df = pd.read_csv(file_path, delimiter=';', encoding='latin-1')
+        # Try multiple encodings to find the correct one
+        encodings = ['utf-8', 'latin-1', 'ISO-8859-1', 'cp1252']
         
-        # Replace empty strings and 'NULL' with None
-        df = df.replace(['', 'NULL'], None)
+        for encoding in encodings:
+            try:
+                print(f"Attempting to read with encoding: {encoding}")
+                # Read CSV with the specified encoding
+                df = pd.read_csv(file_path, delimiter=';', encoding=encoding)
+                
+                # Replace empty strings and 'NULL' with None
+                df = df.replace(['', 'NULL'], None)
+                
+                # Normalize text in all string columns to handle accents properly
+                for col in df.select_dtypes(include=['object']).columns:
+                    df[col] = df[col].apply(normalize_text)
+                
+                # Convert date columns to datetime
+                for date_col in ['dat_entradateste', 'dat_entradaoperacao', 'dat_desativacao']:
+                    if date_col in df.columns:
+                        df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+                
+                # Convert potencia_efetiva to float
+                if 'val_potenciaefetiva' in df.columns:
+                    df['val_potenciaefetiva'] = pd.to_numeric(df['val_potenciaefetiva'], errors='coerce')
+                
+                print(f"Successfully loaded data with encoding: {encoding}")
+                return df
+                
+            except UnicodeDecodeError:
+                print(f"Failed to decode with {encoding}, trying next encoding...")
         
-        # Convert date columns to datetime
-        for date_col in ['dat_entradateste', 'dat_entradaoperacao', 'dat_desativacao']:
-            if date_col in df.columns:
-                df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
-        
-        # Convert potencia_efetiva to float
-        if 'val_potenciaefetiva' in df.columns:
-            df['val_potenciaefetiva'] = pd.to_numeric(df['val_potenciaefetiva'], errors='coerce')
-        
-        return df
+        raise Exception("Could not read the file with any of the attempted encodings")
     except Exception as e:
         print(f"Error loading CAPACIDADE_GERACAO.csv: {e}")
         return None
@@ -220,7 +245,7 @@ def insert_agentes(conn, df):
         print(f"Error inserting into Agente_Proprietario: {e}")
         conn.rollback()
 
-# Function to insert data into Usina table
+# Function to insert data into Usina table - updated to handle accented characters
 def insert_usinas(conn, df):
     try:
         cursor = conn.cursor()
@@ -241,6 +266,11 @@ def insert_usinas(conn, df):
             id_agente = agente_map.get(row['nom_agenteproprietario'])
             id_estado = estado_map.get(row['id_estado'])
             
+            # Ensure proper handling of accented characters
+            tipo_usina = row['nom_tipousina'].strip() if isinstance(row['nom_tipousina'], str) else row['nom_tipousina']
+            modalidade = row['nom_modalidadeoperacao'].strip() if isinstance(row['nom_modalidadeoperacao'], str) else row['nom_modalidadeoperacao']
+            nome_usina = row['nom_usina'].strip() if isinstance(row['nom_usina'], str) else row['nom_usina']
+            
             cursor.execute(
                 """
                 INSERT INTO Usina (nome, id_agente_proprietario, tipo,
@@ -249,8 +279,7 @@ def insert_usinas(conn, df):
                 ON CONFLICT DO NOTHING
                 RETURNING id_usina
                 """,
-                (row['nom_usina'], id_agente,
-                 row['nom_tipousina'], row['nom_modalidadeoperacao'], id_estado)
+                (nome_usina, id_agente, tipo_usina, modalidade, id_estado)
             )
             
             result = cursor.fetchone()
@@ -263,7 +292,7 @@ def insert_usinas(conn, df):
         print(f"Error inserting into Usina: {e}")
         conn.rollback()
 
-# Function to insert data into Unidade_Geradora table
+# Function to insert data into Unidade_Geradora table - updated for encoding
 def insert_unidades_geradoras(conn, df):
     try:
         cursor = conn.cursor()
@@ -294,6 +323,11 @@ def insert_unidades_geradoras(conn, df):
             data_operacao = None if pd.isna(row['dat_entradaoperacao']) else row['dat_entradaoperacao']
             data_desativacao = None if pd.isna(row['dat_desativacao']) else row['dat_desativacao']
             
+            # Handle accented characters properly
+            combustivel = row['nom_combustivel'].strip() if isinstance(row['nom_combustivel'], str) else row['nom_combustivel']
+            nome_unidade = row['nom_unidadegeradora'].strip() if isinstance(row['nom_unidadegeradora'], str) else row['nom_unidadegeradora']
+            cod_equip = row['cod_equipamento'].strip() if isinstance(row['cod_equipamento'], str) else row['cod_equipamento']
+            
             if id_usina:
                 cursor.execute(
                     """
@@ -305,10 +339,10 @@ def insert_unidades_geradoras(conn, df):
                     ON CONFLICT DO NOTHING
                     RETURNING id_unidade
                     """,
-                    (row['cod_equipamento'], row['nom_unidadegeradora'],
+                    (cod_equip, nome_unidade,
                      num_unidade, data_teste, data_operacao,
                      data_desativacao, row['val_potenciaefetiva'],
-                     row['nom_combustivel'], id_usina)
+                     combustivel, id_usina)
                 )
                 
                 result = cursor.fetchone()
@@ -493,6 +527,131 @@ def insert_renewable_per_capita(conn, df):
         print(f"Error inserting into Energia_Renovavel_Per_Capita: {e}")
         conn.rollback()
 
+# Function to load and process HDI data
+def load_hdi_data():
+    file_path = os.path.join(BASE_DIR, 'HDR23-24_Composite_indices_complete_time_series.csv')
+    
+    # List of encodings to try
+    encodings = ['latin-1', 'ISO-8859-1', 'cp1252', 'utf-8-sig']
+    
+    for encoding in encodings:
+        try:
+            print(f"Trying to read HDI data with encoding: {encoding}")
+            # Read CSV file with the current encoding
+            df = pd.read_csv(file_path, encoding=encoding)
+            
+            # Get the column names that contain HDI data (columns starting with 'hdi_')
+            hdi_columns = [col for col in df.columns if col.startswith('hdi_') and col != 'hdicode']
+            
+            # Create a list to store the data in the format (country_code, year, value)
+            hdi_data = []
+            
+            # Process each country
+            for _, row in df.iterrows():
+                iso3 = row['iso3']
+                country_name = row['country']
+                
+                # Process each year's HDI value
+                for col in hdi_columns:
+                    # Extract the year from the column name (format: hdi_YYYY)
+                    year = col.split('_')[1]
+                    
+                    # Try to convert to integer (handle cases like 'hdi_rank' if they exist)
+                    try:
+                        year = int(year)
+                    except ValueError:
+                        continue
+                    
+                    # Get the HDI value
+                    hdi_value = row[col]
+                    
+                    # Only add if the HDI value is not null
+                    if pd.notna(hdi_value):
+                        hdi_data.append({
+                            'code': iso3,
+                            'nome_pais': country_name,
+                            'ano': year,
+                            'valor': float(hdi_value)
+                        })
+            
+            # Convert list to DataFrame
+            hdi_df = pd.DataFrame(hdi_data)
+            print(f"Successfully loaded HDI data with encoding: {encoding}")
+            return hdi_df
+        
+        except Exception as e:
+            print(f"Failed with encoding {encoding}: {e}")
+            continue
+    
+    # If all encodings fail
+    print("Error: Could not load HDI data with any of the attempted encodings")
+    return None
+
+# Function to insert HDI data
+def insert_hdi_data(conn, df):
+    try:
+        cursor = conn.cursor()
+        inserted = 0
+        
+        # Filter out rows with NaN codes
+        df_clean = df.dropna(subset=['code'])
+        
+        # Get country_id mapping
+        country_ids = {}
+        cursor.execute("SELECT id_pais, code FROM Pais")
+        for id_pais, code in cursor.fetchall():
+            country_ids[code] = id_pais
+        
+        # Add any missing countries
+        new_countries = []
+        for _, row in df_clean.iterrows():
+            if row['code'] not in country_ids:
+                new_countries.append((row['code'], row['nome_pais']))
+        
+        # Insert new countries if any
+        if new_countries:
+            new_countries_unique = list(set(new_countries))
+            for code, nome in new_countries_unique:
+                cursor.execute(
+                    """
+                    INSERT INTO Pais (code, nome)
+                    VALUES (%s, %s)
+                    RETURNING id_pais
+                    """,
+                    (code, nome)
+                )
+                result = cursor.fetchone()
+                if result:
+                    country_ids[code] = result[0]
+        
+        # Now insert HDI data
+        for _, row in df_clean.iterrows():
+            code = row['code']
+            id_pais = country_ids.get(code)
+            
+            if id_pais:
+                cursor.execute(
+                    """
+                    INSERT INTO IDH (id_pais, ano, indice)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                    RETURNING id
+                    """,
+                    (id_pais, row['ano'], row['valor'])
+                )
+                
+                result = cursor.fetchone()
+                if result:
+                    inserted += 1
+            else:
+                print(f"Warning: No country ID found for HDI code {code}")
+                
+        conn.commit()
+        print(f"Inserted {inserted} HDI records")
+    except Exception as e:
+        print(f"Error inserting into IDH: {e}")
+        conn.rollback()
+
 # Main function to coordinate data loading and insertion
 def main():
     # Connect to the database
@@ -572,6 +731,14 @@ def main():
         if electricity is not None:
             insert_paises(conn, electricity)
             insert_country_data(conn, electricity, 'Acesso_Eletricidade')
+        
+        print("\nProcessing HDI data...")
+        hdi_data = load_hdi_data()
+        if hdi_data is not None:
+            # Insert countries from HDI data if not already present
+            insert_paises(conn, hdi_data)
+            # Insert the HDI data
+            insert_hdi_data(conn, hdi_data)
         
     except Exception as e:
         print(f"An error occurred in the main process: {e}")
