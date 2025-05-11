@@ -33,4 +33,4 @@ Thumbs.db
 *.json
 
 # Docker-related files
-docker-compose.yml
+docker*.yml
