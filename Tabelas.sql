@@ -1,11 +1,13 @@
--- 6. Tabela Pais (moved up to be created before Regiao)
+-- 6. Tabela Pais
+DROP TABLE IF EXISTS Pais CASCADE;
 CREATE TABLE Pais (
     id_pais SERIAL PRIMARY KEY,
     code VARCHAR(10) UNIQUE NOT NULL,
     nome VARCHAR(100) NOT NULL
 );
 
--- 2 Tabela Subsistema (Renamed from Regiao, using serial PK and cod_regiao as unique)
+-- 2 Tabela Subsistema
+DROP TABLE IF EXISTS Subsistema CASCADE;
 CREATE TABLE Subsistema (
     id_subsistema SERIAL PRIMARY KEY,
     cod_regiao VARCHAR(3) UNIQUE NOT NULL,
@@ -13,7 +15,8 @@ CREATE TABLE Subsistema (
     id_pais INTEGER REFERENCES Pais(id_pais)
 );
 
--- 1. Tabela Estado (mudar pk para code_estado)
+-- 1. Tabela Estado
+DROP TABLE IF EXISTS Estado CASCADE;
 CREATE TABLE Estado (
     id_estado SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL,
@@ -22,22 +25,26 @@ CREATE TABLE Estado (
 );
 
 -- 3. Tabela Agente_Proprietario
+DROP TABLE IF EXISTS Agente_Proprietario CASCADE;
 CREATE TABLE Agente_Proprietario (
     id_agente SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL
 );
 
--- 4. Tabela Usina (datas de entrada e desativação para unidade geradora)
+-- 4. Tabela Usina
+DROP TABLE IF EXISTS Usina CASCADE;
 CREATE TABLE Usina (
     id_usina SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL,
     id_agente_proprietario INTEGER REFERENCES Agente_Proprietario(id_agente),
     tipo VARCHAR(50),
     modalidade_operacao VARCHAR(50),
-    id_estado INTEGER REFERENCES Estado(id_estado)
+    id_estado INTEGER REFERENCES Estado(id_estado),
+    ceg VARCHAR(50) UNIQUE
 );
 
--- 5. Tabela Unidade_Geradora (MUDAR)
+-- 5. Tabela Unidade_Geradora
+DROP TABLE IF EXISTS Unidade_Geradora CASCADE;
 CREATE TABLE Unidade_Geradora (
     id_unidade SERIAL PRIMARY KEY,
     cod_equipamento VARCHAR(50) NOT NULL,
@@ -52,6 +59,7 @@ CREATE TABLE Unidade_Geradora (
 );
 
 -- 7. Tabela Acesso_Eletricidade
+DROP TABLE IF EXISTS Acesso_Eletricidade CASCADE;
 CREATE TABLE Acesso_Eletricidade (
     id SERIAL PRIMARY KEY,
     id_pais INTEGER REFERENCES Pais(id_pais),
@@ -60,6 +68,7 @@ CREATE TABLE Acesso_Eletricidade (
 );
 
 -- 8. Tabela Acesso_Energia_Renovavel
+DROP TABLE IF EXISTS Acesso_Energia_Renovavel CASCADE;
 CREATE TABLE Acesso_Energia_Renovavel (
     id SERIAL PRIMARY KEY,
     id_pais INTEGER REFERENCES Pais(id_pais),
@@ -68,6 +77,7 @@ CREATE TABLE Acesso_Energia_Renovavel (
 );
 
 -- 9. Tabela Acesso_Combustivel_Limpo
+DROP TABLE IF EXISTS Acesso_Combustivel_Limpo CASCADE;
 CREATE TABLE Acesso_Combustivel_Limpo (
     id SERIAL PRIMARY KEY,
     id_pais INTEGER REFERENCES Pais(id_pais),
@@ -75,7 +85,8 @@ CREATE TABLE Acesso_Combustivel_Limpo (
     porcentagem FLOAT NOT NULL
 );
 
--- 10. Tabela Investimento_Energia_Limpa
+-- 10. Tabela Investimento_Energia_Limpa    
+DROP TABLE IF EXISTS Investimento_Energia_Limpa CASCADE;
 CREATE TABLE Investimento_Energia_Limpa (
     id SERIAL PRIMARY KEY,
     id_pais INTEGER REFERENCES Pais(id_pais),
@@ -84,6 +95,7 @@ CREATE TABLE Investimento_Energia_Limpa (
 );
 
 -- 11. Tabela Energia_Renovavel_Per_Capita
+DROP TABLE IF EXISTS Energia_Renovavel_Per_Capita CASCADE;
 CREATE TABLE Energia_Renovavel_Per_Capita (
     id SERIAL PRIMARY KEY,
     id_pais INTEGER REFERENCES Pais(id_pais),
@@ -92,6 +104,7 @@ CREATE TABLE Energia_Renovavel_Per_Capita (
 );
 
 -- 12. Tabela IDH
+DROP TABLE IF EXISTS IDH CASCADE;
 CREATE TABLE IDH (
     id SERIAL PRIMARY KEY,
     id_pais INTEGER REFERENCES Pais(id_pais),

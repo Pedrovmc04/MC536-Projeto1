@@ -10,4 +10,4 @@ DB_CONFIG = {
 }
 
 # Path configuration
-DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
+DATA_DIR = './data'
