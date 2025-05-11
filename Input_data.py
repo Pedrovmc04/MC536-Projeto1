@@ -11,11 +11,11 @@ DB_PARAMS = {
     'user': 'postgres',         # Replace with your username
     'password': 'mypassword',     # Replace with your password
     'host': '127.0.0.1',
-    'port': '5432'
+    'port': '5433'
 }
 
 # Path to CSV files
-BASE_DIR = '/home/pedrovmc/Downloads/Banco de dados/data'
+BASE_DIR = os.path.join(os.path.dirname(__file__), 'data')
 
 # Function to connect to PostgreSQL
 def connect_to_db():
