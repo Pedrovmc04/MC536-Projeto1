@@ -14,7 +14,7 @@ The core of this project is the relational database designed to integrate the di
 *(Add a link or image of your conceptual model here)*
 
 **Figure 2: Relational (Logical) Model**  
-*(Add a link or image of your relational model here)*
+![Relational Model](./models/Modelo_Relacional.png)
 
 *(The detailed Physical Model SQL script can be found [here](./models/physical-model.sql)).*
 
