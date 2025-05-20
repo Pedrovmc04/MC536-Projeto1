@@ -11,10 +11,10 @@ This repository contains the coursework for **MC536: Databases - Theory and Prac
 The core of this project is the relational database designed to integrate the different datasets. Below are visualizations of the conceptual and relational models:
 
 **Figure 1: Conceptual Model (ER Diagram)**  
-*(Add a link or image of your conceptual model here)*
+![Conceptual Model](./models/Conceptual_Model.png)
 
 **Figure 2: Relational (Logical) Model**  
-![Relational Model](./models/Modelo_Relacional.png)
+![Relational Model](./models/Relational_Model.png)
 
 *(The detailed Physical Model SQL script can be found [here](./models/physical-model.sql)).*
 
