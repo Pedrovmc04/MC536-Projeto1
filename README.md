@@ -3,6 +3,7 @@
 ## Project Overview
 This project was developed by  
 [Tiago Perrupato](https://github.com/tiagoperrupato) RA 194058
+[Luiz Eduardo Silva Salustriano](https://github.com/LuizSalu) RA 183139
 
 This repository contains the coursework for **MC536: Databases - Theory and Practice**. The project involves designing, implementing, and querying a PostgreSQL database to analyze relationships between electricity, renewable energy generation, clean energy investments, and development indicators using open-source data. We use data from Brazil and and its states and other countries.
 
