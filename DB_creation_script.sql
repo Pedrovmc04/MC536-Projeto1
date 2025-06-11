@@ -34,7 +34,6 @@ CREATE TABLE Subsistema (
 CREATE TABLE Estado (
     id_estado SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL,
-    id_subsistema INTEGER,
     cod_estado VARCHAR(2) NOT NULL
 );
 
