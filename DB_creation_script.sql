@@ -3,6 +3,7 @@
 DROP TABLE IF EXISTS Pais CASCADE;
 DROP TABLE IF EXISTS Subsistema CASCADE;
 DROP TABLE IF EXISTS Estado CASCADE;
+DROP TABLE IF EXISTS Subsistema_estado CASCADE;
 DROP TABLE IF EXISTS Agente_Proprietario CASCADE;
 DROP TABLE IF EXISTS Usina CASCADE;
 DROP TABLE IF EXISTS Unidade_Geradora CASCADE;
@@ -24,17 +25,24 @@ CREATE TABLE Pais (
 -- 2. Tabela Subsistema
 CREATE TABLE Subsistema (
     id_subsistema SERIAL PRIMARY KEY,
-    cod_regiao VARCHAR(3) UNIQUE NOT NULL,
     nome VARCHAR(100) NOT NULL,
-    id_pais INTEGER REFERENCES Pais(id_pais)
+    id_pais INTEGER REFERENCES Pais(id_pais),
+    cod_subsistema VARCHAR(3) UNIQUE NOT NULL
 );
 
 -- 3. Tabela Estado
 CREATE TABLE Estado (
     id_estado SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL,
-    cod_estado VARCHAR(2) NOT NULL,
-    id_subsistema INTEGER REFERENCES Subsistema(id_subsistema)
+    id_subsistema INTEGER,
+    cod_estado VARCHAR(2) NOT NULL
+);
+
+-- Nova tabela de relacionamento Subsistema_estado
+CREATE TABLE Subsistema_estado (
+    id_subsistema_estado SERIAL PRIMARY KEY,
+    id_subsistema INTEGER REFERENCES Subsistema(id_subsistema),
+    id_estado INTEGER REFERENCES Estado(id_estado)
 );
 
 -- 4. Tabela Agente_Proprietario
